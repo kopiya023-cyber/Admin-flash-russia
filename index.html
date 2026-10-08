@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FLASH RUSSIA — заявки</title>
+<style>
+:root{color-scheme:dark;--bg:#090d18;--card:#121a2c;--line:#263450;--text:#edf3ff;--muted:#9aa9c4;--blue:#4d8dff;--green:#2ecc91;--red:#ff647c}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at top,#152747,var(--bg) 55%);color:var(--text);font:15px system-ui,Arial;min-height:100vh}
+main{max-width:1100px;margin:auto;padding:22px 15px 60px}.brand{color:#8eb8ff;font-size:12px;font-weight:900;letter-spacing:.22em}
+h1{font-size:clamp(26px,5vw,40px);margin:8px 0}p{color:var(--muted)}.top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.panel{background:#10182a;border:1px solid var(--line);border-radius:18px;padding:16px;margin-top:18px;box-shadow:0 12px 35px #0003}
+.controls{display:flex;gap:10px;flex-wrap:wrap}input,select,button{font:inherit;border-radius:10px;padding:11px 13px;border:1px solid var(--line);background:#0a1120;color:var(--text)}button{cursor:pointer;background:var(--blue);border:0;font-weight:800}button.secondary{background:#263550}button.green{background:#16865f}button.red{background:#a9324a}
+.stats{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.pill{border:1px solid var(--line);padding:8px 11px;border-radius:999px;color:#c7d6f2;font-size:13px}
+.list{display:grid;gap:12px;margin-top:14px}.item{background:#0c1424;border:1px solid var(--line);border-radius:14px;padding:15px}.itemhead{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}.name{font-weight:900;font-size:18px}.status{font-size:12px;border-radius:999px;padding:5px 9px;background:#34415b}.status.new{background:#4b3b1c;color:#ffdb8b}.status.ok{background:#123e34;color:#7cf0c2}.status.no{background:#4a202b;color:#ff9eae}
+.details{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin:14px 0}.field{background:#121d31;border-radius:9px;padding:10px;overflow-wrap:anywhere}.field b{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px}.actions{display:flex;gap:8px;flex-wrap:wrap}.empty{text-align:center;padding:35px;color:var(--muted)}.error{color:#ff9eae}
+</style></head>
+<body><main>
+<div class="top"><div><div class="brand">FLASH RUSSIA</div><h1>Панель заявок</h1><p>Управление заявками администрации проекта</p></div><button class="secondary" id="refresh">Обновить</button></div>
+<div class="panel"><div class="controls"><select id="filter"><option value="Все">Все статусы</option><option>Новая</option><option>Принята</option><option>Отклонена</option></select><input id="search" placeholder="Поиск по нику или ID" /></div><div class="stats" id="stats"></div><div id="message" role="status"></div><div class="list" id="list"><div class="empty">Загрузка заявок…</div></div></div>
+</main>
+<script>
+const parts=location.pathname.split('/').filter(Boolean);
+const slug=parts[0]==='panel'?(parts[1]||''):'';
+const api=`/api/${encodeURIComponent(slug)}/applications`;
+let applications=[];
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function showMessage(t,err=false){const el=document.querySelector('#message');el.textContent=t;el.className=err?'error':''}
+async function request(url,options={}){const r=await fetch(url,{...options,headers:{'Content-Type':'application/json',...(options.headers||{})}});let d={};try{d=await r.json()}catch{}if(!r.ok)throw Error(d.error||`Ошибка сервера (${r.status})`);return d}
+async function load(){document.querySelector('#list').innerHTML='<div class="empty">Загрузка…</div>';try{const d=await request(api);applications=d.applications||[];showMessage('');render()}catch(e){showMessage(e.message,true);document.querySelector('#list').innerHTML='<div class="empty">Не удалось загрузить заявки. Проверьте секретную ссылку и настройки базы.</div>'}}
+function render(){const filter=document.querySelector('#filter').value, q=document.querySelector('#search').value.toLowerCase();const counts={'Новая':0,'Принята':0,'Отклонена':0};applications.forEach(a=>counts[a.status]=(counts[a.status]||0)+1);document.querySelector('#stats').innerHTML=`<span class="pill">Всего: ${applications.length}</span><span class="pill">Новые: ${counts['Новая']||0}</span><span class="pill">Приняты: ${counts['Принята']||0}</span><span class="pill">Отклонены: ${counts['Отклонена']||0}</span>`;
+const arr=applications.filter(a=>(filter==='Все'||a.status===filter)&&`${a.nickname} ${a.application_id} ${a.telegram}`.toLowerCase().includes(q));
+if(!arr.length){document.querySelector('#list').innerHTML='<div class="empty">Заявок пока нет.</div>';return}
+document.querySelector('#list').innerHTML=arr.map(a=>{const statusClass=a.status==='Принята'?'ok':a.status==='Отклонена'?'no':'new';const fields=[['ID заявки',a.application_id],['Возраст',a.age],['Telegram',a.telegram],['Уровень в игре',a.level],['Должность',a.role],['Опыт',a.experience],['Почему хочет стать админом',a.reason],['Онлайн',a.online],['Решение конфликтов',a.conflicts],['Создана',a.created_at?new Date(a.created_at).toLocaleString('ru-RU'):'—']];return `<article class="item"><div class="itemhead"><div class="name">${esc(a.nickname||'Без ника')}</div><span class="status ${statusClass}">${esc(a.status)}</span></div><div class="details">${fields.map(([k,v])=>`<div class="field"><b>${esc(k)}</b>${esc(v||'—')}</div>`).join('')}</div><div class="actions"><button class="green" onclick="changeStatus(${a.id},'Принята')" ${a.status==='Принята'?'disabled':''}>✓ Принять</button><button class="red" onclick="changeStatus(${a.id},'Отклонена')" ${a.status==='Отклонена'?'disabled':''}>✕ Отклонить</button><button class="secondary" onclick="changeStatus(${a.id},'Новая')" ${a.status==='Новая'?'disabled':''}>Вернуть в новые</button></div></article>`}).join('')}
+async function changeStatus(id,status){try{await request(api,{method:'PATCH',body:JSON.stringify({id,status})});showMessage('Статус обновлён.');await load()}catch(e){showMessage(e.message,true)}}
+document.querySelector('#refresh').addEventListener('click',load);document.querySelector('#filter').addEventListener('change',render);document.querySelector('#search').addEventListener('input',render);
+load();
+</script></body></html>
